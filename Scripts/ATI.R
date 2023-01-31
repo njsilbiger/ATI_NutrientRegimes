@@ -29,7 +29,11 @@ data_scaled<-data_filtered %>%
   mutate_at(vars(c("Phosphate","Silicate","Nitrite_plus_Nitrate","Ammonia",
                    "Ultra.Violet.Humic.like","Tyrosine.like","Visible.Humic.like",
                    "Marine.Humic.like","Tryptophan.like","Lignin.like","M.C",
-                   "HIX","BIX","FI")), list(scale = scale)) %>%
+                   "HIX","BIX","FI")), function(x){log(x+0.1)})%>%
+  mutate_at(vars(c("Phosphate","Silicate","Nitrite_plus_Nitrate","Ammonia",
+                   "Ultra.Violet.Humic.like","Tyrosine.like","Visible.Humic.like",
+                   "Marine.Humic.like","Tryptophan.like","Lignin.like","M.C",
+                   "HIX","BIX","FI")), list(scale = scale) )%>%
   ungroup()
 
 
