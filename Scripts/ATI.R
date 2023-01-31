@@ -11,7 +11,6 @@ library(patchwork)
 library(cowplot)
 
 
-
 #### read in the data ###############
 data<-read_csv(here("Data","AllNutrientData_clusters.csv"))
 
@@ -137,3 +136,26 @@ finalPlot2 <- cowplot::ggdraw() +
 fdom<-finalPlot2|biplot2
 
 ggsave(filename = here("Outputs","nutrientfdompca.png"), plot = fdom, width = 12, height = 6)
+
+### Calculate the euclidean distances between the years for the pca
+
+distance<- function(x1, x2, y1, y2){
+  sqrt((x2-x1)^2+(y2-y1)^2)
+  }
+
+Y21<-data_scaled_pca2 %>%
+  select(Site, Year, Turbinaria_groups, Comp.1, Comp.2) %>%
+  filter(Year == "2021") %>%
+  select(-Year, Comp.1_21 = Comp.1, Comp.2_21 = Comp.2)
+
+Y22<-data_scaled_pca2 %>%
+  select(Site, Year, Turbinaria_groups, Comp.1, Comp.2) %>%
+  filter(Year == "2022") %>%
+select(-Year, Comp.1_22 = Comp.1, Comp.2_22 = Comp.2)
+
+distances<-full_join(Y21, Y22)  %>%
+  mutate(Eu_distance = distance(Comp.1_21, Comp.1_22, Comp.2_21, Comp.2_22))
+
+distances %>%
+  ggplot(aes(x = Turbinaria_groups, y = Eu_distance))+
+  geom_boxplot()
