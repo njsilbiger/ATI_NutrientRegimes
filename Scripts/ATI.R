@@ -10,7 +10,14 @@ library(biscale)
 library(patchwork)
 library(cowplot)
 library(PNWColors)
-
+library(hrbrthemes)
+library(circlize)
+library(networkD3)
+library(ggsankey)
+library(ggalluvial)
+library(FactoMineR)
+library(ggfortify)
+library(cluster)
 
 #### read in the data ###############
 data<-read_csv(here("Data","AllNutrientData_clusters.csv"))
@@ -138,6 +145,32 @@ fdom<-finalPlot2|biplot2
 
 ggsave(filename = here("Outputs","nutrientfdompca.png"), plot = fdom, width = 12, height = 6)
 
+# Nury's clusters
+set.seed(123)
+fviz_nbclust(nutrientfdom_data, pam, method="silhouette")+theme_classic()
+
+set.seed(123)
+pam.res <- pam(nutrientfdom_data, 3) #using 5 even tho the silhoutte chose 2
+print(pam.res)
+
+## add in Nury's clusters
+data_scaled_pca2  <- data_scaled_pca2 %>%
+  mutate(Cluster_Nury = factor(pam.res$cluster))
+
+# add Nury's clusters with the mega dataset
+data<-data_scaled_pca2 %>%
+  select(Site, Year, Cluster_Nury) %>%
+  right_join(data)
+
+# make a PCA with hers
+
+ggplot(data_scaled_pca2)+
+  geom_point(aes(x = Comp.1, y = Comp.2, color = Cluster_Nury),
+             show.legend = FALSE)+
+  facet_wrap(~Year) +
+  theme_bw()+
+  theme(line = element_blank())
+ggsave(here("Outputs","Nury_clusters.png"), width = 6, height = 4)
 ### Calculate the euclidean distances between the years for the pca
 
 distance<- function(x1, x2, y1, y2){
@@ -188,22 +221,64 @@ Y21a<-data %>%
 Y22a<-data %>%
   select(Site, Year, Turbinaria_groups, Nutrient_PC1, Nutrient_PC2, Nutrient_Clusters) %>%
   filter(Year == "2022") %>%
-  select(-Year, Comp.1_22 = Nutrient_PC1, Comp.2_22 = Nutrient_PC2, Nutrient_Clusters)
+  select(-Year, Comp.1_22 = Nutrient_PC1, Comp.2_22 = Nutrient_PC2, Nutrient_Clusters2 = Nutrient_Clusters)
 
 distancesa<-full_join(Y21a, Y22a)  %>%
   mutate(Eu_distance = distance(Comp.1_21, Comp.1_22, Comp.2_21, Comp.2_22))
 
+# figure out the percent of points that changed clusters
+distancesa %>%
+  mutate(same = ifelse(Nutrient_Clusters == Nutrient_Clusters2, "yes","no")) %>%
+  drop_na(Nutrient_Clusters,Nutrient_Clusters2)%>%
+  group_by(same) %>%
+  count()
+
+# 60% stayed in the same cluster
+
 distancesa %>%
   drop_na()%>%
-  ggplot(aes(x = Nutrient_Clusters, y = Eu_distance, fill = Nutrient_Clusters))+
+  ggplot(aes(x = Nutrient_Clusters, y = Eu_distance))+
   geom_boxplot()+
-  geom_jitter(width = 0.2)+
-  labs(x = "",
+  geom_jitter(width = 0.2, aes(color = Nutrient_Clusters2))+
+  labs(x = "Nutrient Clusters 2021",
        y = "Euclidean distance between 2021 and 2022",
-       fill = "Nutrient Clusters")+
-  scale_fill_manual(values = pal)+
+       color = "Nutrient Clusters 2022")+
+  scale_color_manual(values = pal)+
   theme_bw()
+
 ggsave(here("Outputs","Eu_distances_craig.png"), width = 6, height = 6)
+
+## make a sankey plot
+# make the df with counts for each group
+sankeydf<-distancesa %>%
+  drop_na()%>%
+  mutate(same = ifelse(Nutrient_Clusters == Nutrient_Clusters2, "yes","no"))%>%
+  group_by(Nutrient_Clusters, Nutrient_Clusters2, same) %>%
+  count(.drop = FALSE) %>%
+  ungroup()%>% # calculate the number within each group
+  select(source = Nutrient_Clusters,target = Nutrient_Clusters2,  value = n, same)%>%
+  bind_rows(data.frame(source = c("High Nutrient"), target = c("High fDOM"), value = c(0), same = c("no")))
+
+# make the plot
+ggplot(data = sankeydf,
+       aes(axis1 = source, axis2 = target, 
+           y = value)) +
+  scale_x_discrete(limits = c("2021", "2022"), expand = c(.2, .05)) +
+ # xlab("Demographic") +
+  geom_alluvium(aes(fill = source)) +
+  geom_stratum() +
+  geom_text(stat = "stratum", aes(label = after_stat(stratum))) +
+  theme_minimal()+
+  scale_fill_manual(values = pal)+
+  labs(y = "",
+      # fill = "Stayed the same"
+       )+
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        legend.position = 'none')
+
+ggsave(here("Outputs","flowdiagram.jpg"), width = 6, height = 6)
+
 
 ## plots of craig's PC2 versus mean turb
 data %>%
@@ -238,6 +313,7 @@ summary(mod_N)
 mod_N2<-lm(Nutrient_PC2~Percent_N, data = data %>% drop_na(Turbinaria_N,Nutrient_PC2))
 anova(mod_N2)
 summary(mod_N2)
+
 # Variance model
 data %>%
   mutate(Turbinaria_quantile_meanName = factor(Turbinaria_quantile_meanName, levels = c("Low","Med","High")))%>%
@@ -251,7 +327,37 @@ data %>%
   theme_bw()
 ggsave(here("Outputs","Turb_pc2_var.png"), width = 6, height = 6)
 
+## Nury clusters with microbes
+N1<-data %>%
+  mutate(Turbinaria_quantile_meanName = factor(Turbinaria_quantile_meanName, levels = c("Low","Med","High")))%>%
+  drop_na(Turbinaria_N,Nutrient_PC2)%>%
+  ggplot(aes(x = Cluster_Nury, y = Microbial_PCoA1, fill = Cluster_Nury))+
+  geom_boxplot()+
+  geom_jitter(width = 0.2)+
+  scale_fill_manual(values = pal)+
+ # geom_smooth(method = "lm")+
+  labs(#color = "Year",
+    y = "Microbial PCO1",
+    x = "Nutrient cluster Nury")+
+  theme_bw()+
+  theme(legend.position = 'none')
 
+N2<-data %>%
+  mutate(Nutrient_Clusters = factor(Nutrient_Clusters, levels = c("Low Nutrient","High fDOM","High Nutrient")))%>%
+  drop_na(Turbinaria_N,Nutrient_PC2)%>%
+  ggplot(aes(x = Nutrient_Clusters, y = Microbial_PCoA1, fill = Nutrient_Clusters))+
+  geom_boxplot()+
+  geom_jitter(width = 0.2)+
+  scale_fill_manual(values = pal)+
+  # geom_smooth(method = "lm")+
+  labs(#color = "Year",
+    y = "Microbial PCO1",
+    x = "Nutrient cluster Craig")+
+  theme_bw()+
+  theme(legend.position = 'none')
+
+N1+N2
+ggsave(here("Outputs","clustercomparison.png"), width = 8, height = 4)
 ### with the microbe data
 PM1<-data %>%
   mutate(Turbinaria_quantile_meanName = factor(Turbinaria_quantile_meanName, levels = c("Low","Med","High")))%>%
