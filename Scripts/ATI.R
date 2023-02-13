@@ -9,6 +9,7 @@ library(here)
 library(biscale)
 library(patchwork)
 library(cowplot)
+library(PNWColors)
 
 
 #### read in the data ###############
@@ -144,14 +145,14 @@ distance<- function(x1, x2, y1, y2){
   }
 
 Y21<-data_scaled_pca2 %>%
-  select(Site, Year, Turbinaria_groups, Comp.1, Comp.2) %>%
+  select(Site, Year, Turbinaria_groups, Comp.1, Comp.2, Nutrient_Clusters) %>%
   filter(Year == "2021") %>%
-  select(-Year, Comp.1_21 = Comp.1, Comp.2_21 = Comp.2)
+  select(-Year, Comp.1_21 = Comp.1, Comp.2_21 = Comp.2, Nutrient_Clusters)
 
 Y22<-data_scaled_pca2 %>%
-  select(Site, Year, Turbinaria_groups, Comp.1, Comp.2) %>%
+  select(Site, Year, Turbinaria_groups, Comp.1, Comp.2, Nutrient_Clusters) %>%
   filter(Year == "2022") %>%
-select(-Year, Comp.1_22 = Comp.1, Comp.2_22 = Comp.2)
+select(-Year, Comp.1_22 = Comp.1, Comp.2_22 = Comp.2, Nutrient_Clusters)
 
 distances<-full_join(Y21, Y22)  %>%
   mutate(Eu_distance = distance(Comp.1_21, Comp.1_22, Comp.2_21, Comp.2_22))
@@ -159,3 +160,236 @@ distances<-full_join(Y21, Y22)  %>%
 distances %>%
   ggplot(aes(x = Turbinaria_groups, y = Eu_distance))+
   geom_boxplot()
+
+# color palette
+pal <- pnw_palette("Sailboat",3, type = "discrete")
+
+distances %>%
+  drop_na()%>%
+  ggplot(aes(x = Nutrient_Clusters, y = Eu_distance, fill = Nutrient_Clusters))+
+  # ggdist::stat_gradientinterval(
+  #   linewidth = .3, color = "black"
+  # )+
+  geom_boxplot()+
+  geom_jitter(width = 0.2)+
+  labs(x = "",
+       y = "Euclidean distance between 2021 and 2022",
+       fill = "Nutrient Clusters")+
+  scale_fill_manual(values = pal)+
+  theme_bw()
+ggsave(here("Outputs","Eu_distances.png"), width = 6, height = 6)
+
+# try with Craigs PCA
+Y21a<-data %>%
+  select(Site, Year, Turbinaria_groups, Nutrient_PC1, Nutrient_PC2, Nutrient_Clusters) %>%
+  filter(Year == "2021") %>%
+  select(-Year, Comp.1_21 = Nutrient_PC1, Comp.2_21 = Nutrient_PC2, Nutrient_Clusters)
+
+Y22a<-data %>%
+  select(Site, Year, Turbinaria_groups, Nutrient_PC1, Nutrient_PC2, Nutrient_Clusters) %>%
+  filter(Year == "2022") %>%
+  select(-Year, Comp.1_22 = Nutrient_PC1, Comp.2_22 = Nutrient_PC2, Nutrient_Clusters)
+
+distancesa<-full_join(Y21a, Y22a)  %>%
+  mutate(Eu_distance = distance(Comp.1_21, Comp.1_22, Comp.2_21, Comp.2_22))
+
+distancesa %>%
+  drop_na()%>%
+  ggplot(aes(x = Nutrient_Clusters, y = Eu_distance, fill = Nutrient_Clusters))+
+  geom_boxplot()+
+  geom_jitter(width = 0.2)+
+  labs(x = "",
+       y = "Euclidean distance between 2021 and 2022",
+       fill = "Nutrient Clusters")+
+  scale_fill_manual(values = pal)+
+  theme_bw()
+ggsave(here("Outputs","Eu_distances_craig.png"), width = 6, height = 6)
+
+## plots of craig's PC2 versus mean turb
+data %>%
+  mutate(Turbinaria_quantile_meanName = factor(Turbinaria_quantile_meanName, levels = c("Low","Med","High")))%>%
+  drop_na(Turbinaria_N,Nutrient_PC2)%>%
+  ggplot(aes(x = Turbinaria_quantile_meanName, y = Nutrient_PC2, fill = Turbinaria_quantile_meanName))+
+  geom_boxplot()+
+  geom_jitter(width = 0.2, alpha = 0.5)+
+  labs(x = "Turbinarea mean",
+       y = "PC2",
+       fill = "Turb Mean Clusters")+
+  scale_fill_manual(values = pal)+
+  theme_bw()
+
+data %>%
+  mutate(Turbinaria_quantile_meanName = factor(Turbinaria_quantile_meanName, levels = c("Low","Med","High")))%>%
+  drop_na(Turbinaria_N,Nutrient_PC2)%>%
+  ggplot(aes(x = Percent_N, y = Nutrient_PC2))+
+  geom_point(aes(color = factor(Year)))+
+  geom_smooth(method = "lm")+
+  labs(color = "Year",
+      x = "Turbinatia %N",
+      y = "Nutrient cluster PC2")+
+  theme_bw()
+
+ggsave(here("Outputs","Turb_pc2.png"), width = 6, height = 6)
+
+mod_N<-lm(Nutrient_PC2~Turbinaria_N, data = data %>% drop_na(Turbinaria_N,Nutrient_PC2))
+anova(mod_N)
+summary(mod_N)
+
+mod_N2<-lm(Nutrient_PC2~Percent_N, data = data %>% drop_na(Turbinaria_N,Nutrient_PC2))
+anova(mod_N2)
+summary(mod_N2)
+# Variance model
+data %>%
+  mutate(Turbinaria_quantile_meanName = factor(Turbinaria_quantile_meanName, levels = c("Low","Med","High")))%>%
+  drop_na(Turbinaria_N,Nutrient_PC2)%>%
+  ggplot(aes(x = Turbinaria_V, y = Nutrient_PC2))+
+  geom_point(aes(color = factor(Year)))+
+  geom_smooth(method = "lm")+
+  labs(color = "Year",
+       x = "Turbinatia %N Variance",
+       y = "Nutrient cluster PC2")+
+  theme_bw()
+ggsave(here("Outputs","Turb_pc2_var.png"), width = 6, height = 6)
+
+
+### with the microbe data
+PM1<-data %>%
+  mutate(Turbinaria_quantile_meanName = factor(Turbinaria_quantile_meanName, levels = c("Low","Med","High")))%>%
+  drop_na(Turbinaria_N,Nutrient_PC2)%>%
+  ggplot(aes(x = Nutrient_PC2, y = Microbial_PCoA1))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(#color = "Year",
+       y = "Microbial PCO1",
+       x = "Nutrient cluster PC2")+
+  theme_bw()
+
+MicroPC1mod<-lm(Microbial_PCoA1~Nutrient_PC2, data = data)
+summary(MicroPC1mod)
+
+
+PM2<-data %>%
+  mutate(Turbinaria_quantile_meanName = factor(Turbinaria_quantile_meanName, levels = c("Low","Med","High")))%>%
+  drop_na(Turbinaria_N,Nutrient_PC2)%>%
+  ggplot(aes(x = Nutrient_PC2, y = Microbial_Species_Richness))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(#color = "Year",
+    y = "Microbial Species Richness",
+    x = "Nutrient cluster PC2")+
+  theme_bw()
+
+PM3<-data %>%
+  mutate(Turbinaria_quantile_meanName = factor(Turbinaria_quantile_meanName, levels = c("Low","Med","High")))%>%
+  drop_na(Turbinaria_N,Nutrient_PC2)%>%
+  ggplot(aes(x = Nutrient_PC2, y = Microbial_Shannon_Diversity))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(#color = "Year",
+    y = "Microbial Shannon Diversity",
+    x = "Nutrient cluster PC2")+
+  theme_bw()
+
+PM4<-data %>%
+  mutate(Turbinaria_quantile_meanName = factor(Turbinaria_quantile_meanName, levels = c("Low","Med","High")))%>%
+  drop_na(Turbinaria_N,Nutrient_PC2)%>%
+  ggplot(aes(x = Nutrient_PC2, y = Microbial_Phylogenetic_Diversity))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(#color = "Year",
+    y = "Microbial Phylogenetic Diversity",
+    x = "Nutrient cluster PC2")+
+  theme_bw()
+
+PM5<-data %>%
+  mutate(Turbinaria_quantile_meanName = factor(Turbinaria_quantile_meanName, levels = c("Low","Med","High")))%>%
+  drop_na(Turbinaria_N,Nutrient_PC2)%>%
+  ggplot(aes(x = Nutrient_PC2, y = Microbial_Evenness))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(#color = "Year",
+    y = "Microbial Evenness",
+    x = "Nutrient cluster PC2")+
+  theme_bw()
+
+PM6<-data %>%
+  mutate(Turbinaria_quantile_meanName = factor(Turbinaria_quantile_meanName, levels = c("Low","Med","High")))%>%
+  drop_na(Turbinaria_N,Nutrient_PC2)%>%
+  ggplot(aes(x = Nutrient_PC2, y = Microbial_PCoA2))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(#color = "Year",
+    y = "Microbial PCOA2",
+    x = "Nutrient cluster PC2")+
+  theme_bw()
+
+(PM1 +PM2+PM4)/ (PM6+PM3+PM5)
+
+################ same with PC cluster 1
+PM1a<-data %>%
+  mutate(Turbinaria_quantile_meanName = factor(Turbinaria_quantile_meanName, levels = c("Low","Med","High")))%>%
+  drop_na(Turbinaria_N,Nutrient_PC1)%>%
+  ggplot(aes(x = Nutrient_PC1, y = Microbial_PCoA1))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(#color = "Year",
+    y = "Microbial PCO1",
+    x = "Nutrient cluster PC1")+
+  theme_bw()
+
+PM2a<-data %>%
+  mutate(Turbinaria_quantile_meanName = factor(Turbinaria_quantile_meanName, levels = c("Low","Med","High")))%>%
+  drop_na(Turbinaria_N,Nutrient_PC2)%>%
+  ggplot(aes(x = Nutrient_PC1, y = Microbial_Species_Richness))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(#color = "Year",
+    y = "Microbial Species Richness",
+    x = "Nutrient cluster PC1")+
+  theme_bw()
+
+PM3a<-data %>%
+  mutate(Turbinaria_quantile_meanName = factor(Turbinaria_quantile_meanName, levels = c("Low","Med","High")))%>%
+  drop_na(Turbinaria_N,Nutrient_PC2)%>%
+  ggplot(aes(x = Nutrient_PC1, y = Microbial_Shannon_Diversity))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(#color = "Year",
+    y = "Microbial Shannon Diversity",
+    x = "Nutrient cluster PC1")+
+  theme_bw()
+
+PM4a<-data %>%
+  mutate(Turbinaria_quantile_meanName = factor(Turbinaria_quantile_meanName, levels = c("Low","Med","High")))%>%
+  drop_na(Turbinaria_N,Nutrient_PC2)%>%
+  ggplot(aes(x = Nutrient_PC1, y = Microbial_Phylogenetic_Diversity))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(#color = "Year",
+    y = "Microbial Phylogenetic Diversity",
+    x = "Nutrient cluster PC1")+
+  theme_bw()
+
+PM5a<-data %>%
+  mutate(Turbinaria_quantile_meanName = factor(Turbinaria_quantile_meanName, levels = c("Low","Med","High")))%>%
+  drop_na(Turbinaria_N,Nutrient_PC2)%>%
+  ggplot(aes(x = Nutrient_PC1, y = Microbial_Evenness))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(#color = "Year",
+    y = "Microbial Evenness",
+    x = "Nutrient cluster PC1")+
+  theme_bw()
+
+PM6a<-data %>%
+  mutate(Turbinaria_quantile_meanName = factor(Turbinaria_quantile_meanName, levels = c("Low","Med","High")))%>%
+  drop_na(Turbinaria_N,Nutrient_PC1)%>%
+  ggplot(aes(x = Nutrient_PC1, y = Microbial_PCoA2))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(#color = "Year",
+    y = "Microbial PCOA2",
+    x = "Nutrient cluster PC1")+
+  theme_bw()
+
+(PM1a +PM2a+PM4a)/ (PM6a+PM3a+PM5a)
