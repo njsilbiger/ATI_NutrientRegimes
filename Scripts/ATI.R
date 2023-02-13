@@ -279,6 +279,9 @@ PM2<-data %>%
     x = "Nutrient cluster PC2")+
   theme_bw()
 
+MicroRichmod<-lm(Microbial_Species_Richness~Nutrient_PC2, data = data)
+summary(MicroRichmod)
+
 PM3<-data %>%
   mutate(Turbinaria_quantile_meanName = factor(Turbinaria_quantile_meanName, levels = c("Low","Med","High")))%>%
   drop_na(Turbinaria_N,Nutrient_PC2)%>%
@@ -289,6 +292,10 @@ PM3<-data %>%
     y = "Microbial Shannon Diversity",
     x = "Nutrient cluster PC2")+
   theme_bw()
+
+MicroShanmod<-lm(Microbial_Shannon_Diversity~Nutrient_PC2, data = data)
+summary(MicroShanmod)
+
 
 PM4<-data %>%
   mutate(Turbinaria_quantile_meanName = factor(Turbinaria_quantile_meanName, levels = c("Low","Med","High")))%>%
@@ -301,6 +308,9 @@ PM4<-data %>%
     x = "Nutrient cluster PC2")+
   theme_bw()
 
+MicroPhylomod<-lm(Microbial_Phylogenetic_Diversity~Nutrient_PC2, data = data)
+summary(MicroPhylomod)
+
 PM5<-data %>%
   mutate(Turbinaria_quantile_meanName = factor(Turbinaria_quantile_meanName, levels = c("Low","Med","High")))%>%
   drop_na(Turbinaria_N,Nutrient_PC2)%>%
@@ -311,6 +321,9 @@ PM5<-data %>%
     y = "Microbial Evenness",
     x = "Nutrient cluster PC2")+
   theme_bw()
+
+MicroEvenmod<-lm(Microbial_Evenness~Nutrient_PC2, data = data)
+summary(MicroEvenmod)
 
 PM6<-data %>%
   mutate(Turbinaria_quantile_meanName = factor(Turbinaria_quantile_meanName, levels = c("Low","Med","High")))%>%
@@ -323,7 +336,12 @@ PM6<-data %>%
     x = "Nutrient cluster PC2")+
   theme_bw()
 
+MicroPCO2mod<-lm(Microbial_PCoA2~Nutrient_PC2, data = data)
+summary(MicroPCO2mod)
+
+
 (PM1 +PM2+PM4)/ (PM6+PM3+PM5)
+ggsave(here("Outputs","Microbe_PC2.png"), width = 8, height = 6)
 
 ################ same with PC cluster 1
 PM1a<-data %>%
