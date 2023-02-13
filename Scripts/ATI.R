@@ -214,14 +214,14 @@ ggsave(here("Outputs","Eu_distances.png"), width = 6, height = 6)
 
 # try with Craigs PCA
 Y21a<-data %>%
-  select(Site, Year, Turbinaria_groups, Nutrient_PC1, Nutrient_PC2, Nutrient_Clusters) %>%
+  select(Site, Year, Turbinaria_groups, Nutrient_PC1, Nutrient_PC2, Nutrient_Clusters, Cluster_Nury) %>%
   filter(Year == "2021") %>%
-  select(-Year, Comp.1_21 = Nutrient_PC1, Comp.2_21 = Nutrient_PC2, Nutrient_Clusters)
+  select(-Year, Comp.1_21 = Nutrient_PC1, Comp.2_21 = Nutrient_PC2, Nutrient_Clusters, Cluster_Nury)
 
 Y22a<-data %>%
-  select(Site, Year, Turbinaria_groups, Nutrient_PC1, Nutrient_PC2, Nutrient_Clusters) %>%
+  select(Site, Year, Turbinaria_groups, Nutrient_PC1, Nutrient_PC2, Nutrient_Clusters,Cluster_Nury) %>%
   filter(Year == "2022") %>%
-  select(-Year, Comp.1_22 = Nutrient_PC1, Comp.2_22 = Nutrient_PC2, Nutrient_Clusters2 = Nutrient_Clusters)
+  select(-Year, Comp.1_22 = Nutrient_PC1, Comp.2_22 = Nutrient_PC2, Nutrient_Clusters2 = Nutrient_Clusters,Cluster_Nury2 = Cluster_Nury)
 
 distancesa<-full_join(Y21a, Y22a)  %>%
   mutate(Eu_distance = distance(Comp.1_21, Comp.1_22, Comp.2_21, Comp.2_22))
@@ -279,7 +279,33 @@ ggplot(data = sankeydf,
 
 ggsave(here("Outputs","flowdiagram.jpg"), width = 6, height = 6)
 
+# make the plot
+ggplot(data = sankeydf2,
+       aes(axis1 = source, axis2 = target, 
+           y = value)) +
+  scale_x_discrete(limits = c("2021", "2022"), expand = c(.2, .05)) +
+  # xlab("Demographic") +
+  geom_alluvium(aes(fill = source)) +
+  geom_stratum() +
+  geom_text(stat = "stratum", aes(label = after_stat(stratum))) +
+  theme_minimal()+
+  scale_fill_manual(values = pal)+
+  labs(y = "",
+       # fill = "Stayed the same"
+  )+
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        legend.position = 'none')
+## Same with Nury clusters
+sankeydf2<-distancesa %>%
+  drop_na()%>%
+  mutate(same = ifelse(Cluster_Nury == Cluster_Nury2, "yes","no"))%>%
+  group_by(Cluster_Nury, Cluster_Nury2, same) %>%
+  count(.drop = FALSE) %>%
+  ungroup()%>% # calculate the number within each group
+  select(source = Cluster_Nury,target = Cluster_Nury2,  value = n, same)
 
+ggsave(here("Outputs","Nuryclusterschange.jpg"), width = 6, height = 6)
 ## plots of craig's PC2 versus mean turb
 data %>%
   mutate(Turbinaria_quantile_meanName = factor(Turbinaria_quantile_meanName, levels = c("Low","Med","High")))%>%
@@ -293,15 +319,26 @@ data %>%
   scale_fill_manual(values = pal)+
   theme_bw()
 
+mod_N<-lm(Nutrient_PC2~Turbinaria_N, data = data %>% drop_na(Turbinaria_N,Nutrient_PC2))
+anova(mod_N)
+summary(mod_N)
+
+mod_N_type2<-lmodel2(Nutrient_PC2~Turbinaria_N, data = data %>% drop_na(Turbinaria_N,Nutrient_PC2))
+
+fits<-tidy(mod_N_type2)
+slope <-fits$estimate[6]
+intercept <-fits$estimate[5]
+
 data %>%
   mutate(Turbinaria_quantile_meanName = factor(Turbinaria_quantile_meanName, levels = c("Low","Med","High")))%>%
   drop_na(Turbinaria_N,Nutrient_PC2)%>%
   ggplot(aes(x = Percent_N, y = Nutrient_PC2))+
   geom_point(aes(color = factor(Year)))+
   geom_smooth(method = "lm")+
+  geom_abline(slope = slope, intercept = intercept, color = "black")+
   labs(color = "Year",
-      x = "Turbinatia %N",
-      y = "Nutrient cluster PC2")+
+      x = "Turbinatia %N Mean",
+      y = "Nutrient PC2")+
   theme_bw()
 
 ggsave(here("Outputs","Turb_pc2.png"), width = 6, height = 6)
@@ -309,6 +346,9 @@ ggsave(here("Outputs","Turb_pc2.png"), width = 6, height = 6)
 mod_N<-lm(Nutrient_PC2~Turbinaria_N, data = data %>% drop_na(Turbinaria_N,Nutrient_PC2))
 anova(mod_N)
 summary(mod_N)
+
+mod_N_type2<-lmodel2(Nutrient_PC2~Turbinaria_N, data = data %>% drop_na(Turbinaria_N,Nutrient_PC2))
+summary(mod_N_type2)
 
 mod_N2<-lm(Nutrient_PC2~Percent_N, data = data %>% drop_na(Turbinaria_N,Nutrient_PC2))
 anova(mod_N2)
@@ -323,7 +363,7 @@ data %>%
   geom_smooth(method = "lm")+
   labs(color = "Year",
        x = "Turbinatia %N Variance",
-       y = "Nutrient cluster PC2")+
+       y = "Nutrient PC2")+
   theme_bw()
 ggsave(here("Outputs","Turb_pc2_var.png"), width = 6, height = 6)
 
