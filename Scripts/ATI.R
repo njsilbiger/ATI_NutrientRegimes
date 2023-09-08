@@ -18,6 +18,9 @@ library(ggalluvial)
 library(FactoMineR)
 library(ggfortify)
 library(cluster)
+library(factoextra)
+library(lmodel2)
+library(broom)
 
 #### read in the data ###############
 data<-read_csv(here("Data","AllNutrientData_clusters.csv"))
@@ -36,7 +39,7 @@ data_scaled<-data_filtered %>%
   mutate_at(vars(c("Phosphate","Silicate","Nitrite_plus_Nitrate","Ammonia",
                    "Ultra.Violet.Humic.like","Tyrosine.like","Visible.Humic.like",
                    "Marine.Humic.like","Tryptophan.like","Lignin.like","M.C",
-                   "HIX","BIX","FI")), function(x){log(x+0.1)})%>%
+                   "HIX","BIX","FI")), function(x){log(x+1)})%>% ### before this was +0.1
   mutate_at(vars(c("Phosphate","Silicate","Nitrite_plus_Nitrate","Ammonia",
                    "Ultra.Violet.Humic.like","Tyrosine.like","Visible.Humic.like",
                    "Marine.Humic.like","Tryptophan.like","Lignin.like","M.C",
@@ -102,13 +105,13 @@ ggsave(here("Outputs","nutrientpca.png"), width = 8, height = 6)
 
 
 nutrientfdom_data<-data_scaled %>%
-  select(Phosphate_scale:Lignin.like_scale) %>%
-  drop_na(Lignin.like_scale)
+  select(Phosphate_scale,Nitrite_plus_Nitrate_scale,Silicate_scale, Ammonia_scale, HIX_scale,BIX_scale, FI_scale, Marine.Humic.like_scale, Lignin.like_scale, Tryptophan.like_scale, Tyrosine.like_scale) %>%
+  drop_na(Phosphate_scale,Nitrite_plus_Nitrate_scale,Silicate_scale, Ammonia_scale, HIX_scale,BIX_scale, FI_scale, Marine.Humic.like_scale, Lignin.like_scale, Tryptophan.like_scale, Tyrosine.like_scale)
 
 pca_nuts_fdom<-princomp(nutrientfdom_data)
 
 data_scaled_pca2<-bind_cols(data_scaled%>%
-                              drop_na(Lignin.like_scale), data.frame(pca_nuts_fdom$scores[,1:2]))
+                              drop_na(Phosphate_scale,Nitrite_plus_Nitrate_scale,Silicate_scale, Ammonia_scale, HIX_scale,BIX_scale, FI_scale, Marine.Humic.like_scale, Lignin.like_scale, Tryptophan.like_scale, Tyrosine.like_scale), data.frame(pca_nuts_fdom$scores[,1:2]))
 
 # add the color pallete
 data_scaled_pca2 <- biscale::bi_class(data_scaled_pca2, 
@@ -126,6 +129,17 @@ p2<-ggplot(data_scaled_pca2)+
   ggnewscale::new_scale("color") +
   theme(line = element_blank())
 
+## Color by Craigs Nutrient clusters
+
+p3<-ggplot(data_scaled_pca2)+
+  geom_point(aes(x = Comp.1, y = Comp.2, color = Nutrient_Clusters, shape = factor(Year)),
+             #show.legend = FALSE
+             )+
+ # facet_wrap(~Year) +
+  theme_bw()+
+#  bi_scale_color(pal = bivColPal, dim = 3) +
+#  ggnewscale::new_scale("color") +
+  theme(line = element_blank())
 # make biplot
 loadingdata2<-data.frame(pca_nuts_fdom$loadings[,1:2])
 
