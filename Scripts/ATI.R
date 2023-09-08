@@ -110,6 +110,9 @@ nutrientfdom_data<-data_scaled %>%
 
 pca_nuts_fdom<-princomp(nutrientfdom_data)
 
+# percent variance explainted
+perc.explained<-round(100*pca_nuts_fdom$sdev/sum(pca_nuts_fdom$sdev),1)
+
 data_scaled_pca2<-bind_cols(data_scaled%>%
                               drop_na(Phosphate_scale,Nitrite_plus_Nitrate_scale,Silicate_scale, Ammonia_scale, HIX_scale,BIX_scale, FI_scale, Marine.Humic.like_scale, Lignin.like_scale, Tryptophan.like_scale, Tyrosine.like_scale), data.frame(pca_nuts_fdom$scores[,1:2]))
 
@@ -130,6 +133,7 @@ p2<-ggplot(data_scaled_pca2)+
   theme(line = element_blank())
 
 ## Color by Craigs Nutrient clusters
+pal <- pnw_palette("Sailboat",3, type = "discrete")
 
 p3<-ggplot(data_scaled_pca2)+
   geom_point(aes(x = Comp.1, y = Comp.2, color = Nutrient_Clusters, shape = factor(Year)),
@@ -137,18 +141,34 @@ p3<-ggplot(data_scaled_pca2)+
              )+
  # facet_wrap(~Year) +
   theme_bw()+
+  scale_color_manual(values = pal)+
+  labs(x = paste0("PC1 ","(",perc.explained[1],"%)"),
+       y = paste0("PC2 ","(",perc.explained[2],"%)"),
+       shape = "Year",
+       color = "Cluster")+
+  coord_cartesian(xlim = c(-4, 8), ylim = c(-4, 8))+
 #  bi_scale_color(pal = bivColPal, dim = 3) +
 #  ggnewscale::new_scale("color") +
-  theme(line = element_blank())
+  theme(#line = element_blank(),
+        axis.title = element_text(size = 16),
+        axis.text = element_text(size = 14))
 # make biplot
 loadingdata2<-data.frame(pca_nuts_fdom$loadings[,1:2])
 
 biplot2 <- ggplot(loadingdata2)+
   coord_equal() + 
-  geom_text(aes(x=Comp.1, y=Comp.2, label=rownames(loadingdata2)), size = 5, vjust=1, color="red")+
-  geom_segment(aes(x=0, y=0, xend=Comp.1, yend=Comp.2), arrow=arrow(length=unit(0.2,"cm")), alpha=0.75, color="red")+
+  geom_text(aes(x=Comp.1*10+.3, y=Comp.2*10+.3, label=rownames(loadingdata2)), size = 5, vjust=1, color="black")+
+  geom_segment(aes(x=0, y=0, xend=Comp.1*10, yend=Comp.2*10), arrow=arrow(length=unit(0.2,"cm")), alpha=0.75, color="black")+
+  coord_cartesian(xlim = c(-4, 8), ylim = c(-4, 8))+
+  labs(x = paste0("PC1 ","(",perc.explained[1],"%)"),
+       y = paste0("PC2 ","(",perc.explained[2],"%)"))+
   theme_bw()+
-  theme(line = element_blank())
+  theme(#line = element_blank(),
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 14))
+
+biplot2|p3
+ggsave(here("Outputs","PCA_watercolumn.png"), width = 10, height = 6)
 
 # bring it with the legend
 finalPlot2 <- cowplot::ggdraw() +
@@ -274,7 +294,7 @@ sankeydf<-distancesa %>%
   bind_rows(data.frame(source = c("High Nutrient"), target = c("High fDOM"), value = c(0), same = c("no")))
 
 # make the plot
-ggplot(data = sankeydf,
+flow_diagram<-ggplot(data = sankeydf,
        aes(axis1 = source, axis2 = target, 
            y = value)) +
   scale_x_discrete(limits = c("2021", "2022"), expand = c(.2, .05)) +
@@ -289,10 +309,14 @@ ggplot(data = sankeydf,
        )+
   theme(axis.text.y = element_blank(),
         axis.ticks.y = element_blank(),
-        legend.position = 'none')
+        legend.position = 'none',
+        axis.title = element_text(size = 16))
 
 ggsave(here("Outputs","flowdiagram.jpg"), width = 6, height = 6)
 
+(biplot2|p3)/flow_diagram+plot_annotation(tag_levels = "A")
+
+ggsave(here("Outputs","flowdiagram_pca.png"), width = 10, height = 10)
 # make the plot
 ggplot(data = sankeydf2,
        aes(axis1 = source, axis2 = target, 
